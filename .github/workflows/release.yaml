@@ -1,0 +1,43 @@
+
+name: Release Charts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+      - name: Install Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: 3.4.0 #renovate: datasource=github-releases depName=helm/helm
+
+      - name: Add external Helm repos
+        run: helm repo add bitnami https://charts.bitnami.com/bitnami
+
+      - name: Build chart dependencies
+        run: |
+          for dir in charts/*/
+          do
+              (cd ${dir}; helm dependency build)
+          done
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.2.0
+        with:
+          version: v1.1.1 #renovate: datasource=github-releases depName=helm/chart-releaser
+        env:
+          CR_TOKEN: '${{ secrets.CR_TOKEN }}'
