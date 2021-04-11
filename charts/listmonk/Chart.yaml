@@ -1,6 +1,8 @@
 apiVersion: v2
 name: listmonk
 description: A Helm chart for Kubernetes
+maintainers:
+  - name: nicolaischmid
 
 # A chart can be either an 'application' or a 'library' chart.
 #
