@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "listmonk.fullname" . }}
+  labels:
+    {{- include "listmonk.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "listmonk.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "listmonk.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "listmonk.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: await-postgres
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: docker.io/bitnami/postgresql:11.6.0-debian-9-r0
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/bash", "-c", "psql --host {{ include "listmonk.postgresName" . }} -U {{ .Values.postgresql.postgresqlUsername }} -d {{ .Values.postgresql.postgresqlDatabase }} -p {{ .Values.postgresql.service.port }} -c '\\c' "]
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "listmonk.postgresName" . }}
+                  key: postgresql-password
+        - name: migrate-db
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./listmonk", "--upgrade", "--yes"]
+          env:
+          {{ include "listmonk.dbEnv" .  | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /listmonk/config.toml
+              subPath: config.toml
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            {{ include "listmonk.dbEnv" .  | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /listmonk/config.toml
+              subPath: config.toml
+{{- if .Values.persistence.enabled }}
+            - name: uploads-volume
+              mountPath: /uploads
+{{- end }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "listmonk.fullname" . }}
+{{- if .Values.persistence.enabled }}
+        - name: uploads-volume
+          persistentVolumeClaim:
+            claimName: uploads-{{ include "listmonk.fullname" . }}
+{{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

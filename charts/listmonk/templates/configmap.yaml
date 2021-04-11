@@ -1,0 +1,27 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "listmonk.fullname" . }}
+data:
+  config.toml: |-
+    [app]
+        # Interface and port where the app will run its webserver.
+        address = "0.0.0.0:9000"
+
+        # BasicAuth authentication for the admin dashboard. This will eventually
+        # be replaced with a better multi-user, role-based authentication system.
+        # IMPORTANT: Leave both values empty to disable authentication on admin
+        # only where an external authentication is already setup.
+        # admin_username = "listmonk"
+        # admin_password = "uZ06YqDwGQXMzIe5"
+        admin_username = "{{ .Values.auth.adminUsername }}"
+        admin_password = "{{ .Values.auth.adminPassword }}"
+
+        # Database.
+        [db]
+        host = "demo-db"
+        port = 5432
+        user = "listmonk"
+        password = "listmonk"
+        database = "listmonk"
+        ssl_mode = "disable"
