@@ -27,6 +27,31 @@ spec:
       serviceAccountName: {{ include "listmonk.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: await-postgres
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: docker.io/bitnami/postgresql:11.6.0-debian-9-r0
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/bash", "-c", "psql --host {{ include "listmonk.postgresName" . }} -U {{ .Values.postgresql.postgresqlUsername }} -d {{ .Values.postgresql.postgresqlDatabase }} -p {{ .Values.postgresql.service.port }} -c '\\c' "]
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "listmonk.postgresName" . }}
+                  key: postgresql-password
+        - name: migrate-db
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./listmonk", "--upgrade", "--yes"]
+          env:
+          {{ include "listmonk.dbEnv" .  | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /listmonk/config.toml
+              subPath: config.toml
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -35,7 +60,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 9000
               protocol: TCP
           livenessProbe:
             httpGet:
@@ -47,6 +72,25 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            {{ include "listmonk.dbEnv" .  | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /listmonk/config.toml
+              subPath: config.toml
+{{- if .Values.persistence.enabled }}
+            - name: uploads-volume
+              mountPath: /uploads
+{{- end }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "listmonk.fullname" . }}
+{{- if .Values.persistence.enabled }}
+        - name: uploads-volume
+          persistentVolumeClaim:
+            claimName: uploads-{{ include "listmonk.fullname" . }}
+{{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

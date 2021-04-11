@@ -1,6 +1,6 @@
 apiVersion: v2
 name: listmonk
-description: A Helm chart for Kubernetes
+description: A Helm chart for listmonk.app
 maintainers:
   - name: nicolaischmid
 
@@ -22,4 +22,9 @@ version: 0.1.0
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
-appVersion: 1.16.0
+appVersion: v0.9.0-beta
+
+dependencies:
+  - name: postgresql
+    version: 7.7.1
+    repository: https://charts.bitnami.com/bitnami

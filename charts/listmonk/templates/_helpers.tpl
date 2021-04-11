@@ -1,3 +1,4 @@
+{{/* vim: set filetype=mustache: */}}
 {{/*
 Expand the name of the chart.
 */}}
@@ -60,3 +61,29 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "call-nested" }}
+{{- $dot := index . 0 }}
+{{- $subchart := index . 1 }}
+{{- $template := index . 2 }}
+{{- include $template (dict "Chart" (dict "Name" $subchart) "Values" (index $dot.Values $subchart) "Release" $dot.Release "Capabilities" $dot.Capabilities) }}
+{{- end }}
+
+{{- define "listmonk.postgresName" -}}
+{{- $name := include "call-nested" (list . "postgresql" "postgresql.fullname") -}}
+{{- printf "%s" $name -}}
+{{- end -}}
+
+{{- define "listmonk.dbEnv" -}}
+- name: LISTMONK_db__host
+  value: {{ include "listmonk.postgresName" . }}
+- name: LISTMONK_db__user
+  value: {{ .Values.postgresql.postgresqlUsername }}
+- name: LISTMONK_db__password
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "listmonk.postgresName" . }}
+      key: postgresql-password
+- name: LISTMONK_db__database
+  value: {{ .Values.postgresql.postgresqlDatabase }}
+{{- end -}}
